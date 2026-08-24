@@ -1,118 +1,55 @@
-# RRS Go Rewrite Handoff
+# RRS handoff
 
-## Goal
+## Current state
 
-Continue the RRS rewrite as a maintainable, self-contained Go executable. This is a personal project, but the code should follow professional Go engineering practices without unnecessary frameworks or abstraction. Linux terminal sessions work. The next major milestone is real Windows support using ConPTY, developed and tested on Windows.
+RRS is a pure-Go remote shell for Linux and Windows amd64. The active branch is
+`master`. A safety copy of the pre-redo history exists locally as
+`backup/pre-model-redo-a54af55`.
 
-## Current State
+The Windows port now uses Microsoft's redistributable ConPTY rather than the
+Windows 10 inbox implementation. Version `1.24.260710001` is embedded in the
+Windows executable and materialized under the user's versioned cache at
+runtime. This is required for native Windows fullscreen TUI mouse input on
+older Windows 10 builds.
 
-- Repository: `/home/projects/rrs-go`
-- Branch: `master`
-- Go module: `github.com/anlaki-py/rrs`
-- Minimum Go version: 1.26
-- The initial rewrite implements `rrs serve` and `rrs connect`.
-- Linux PTY sessions, terminal resizing, bearer authentication, health/info endpoints, and orderly session shutdown are implemented and tested.
-- The WebSocket protocol is documented and versioned as `rrs.v1`.
-- Linux ARM64, Linux AMD64, and Windows AMD64 builds compile with `CGO_ENABLED=0`.
-- Windows ConPTY server sessions now provide usable terminal I/O, resizing, and Job Object cleanup. Client console runtime coverage and Windows CI are still pending.
-- Cloudflare Quick Tunnel support is implemented through an installed `cloudflared` command. Self-update, packaging, and release automation are not implemented.
-- No Git remote is configured. This handoff is included in the initial commit, but the repository must be pushed or otherwise transferred before it can be cloned on Windows.
+## Implemented behavior
 
-## What Was Implemented
+- `rrs serve` defaults to port 7000.
+- `rrs connect` accepts flags before or after its URL.
+- Remote `ws://` connections are allowed by default; `--allow-plaintext`
+  remains accepted for compatibility.
+- Windows sessions start Windows PowerShell with normal profile loading.
+- Windows process trees are assigned to a kill-on-close Job Object before the
+  suspended shell starts.
+- Normal PowerShell `exit` closes terminal output and the WebSocket session.
+- Clients enter an alternate screen and restore it on disconnect.
+- Clients enable click, drag, scroll, and hover mouse reporting during a
+  session.
+- Windows client reads are canceled with `CancelSynchronousIo`, with no
+  abandoned read goroutine.
+- Cloudflare tunnels use `cloudflared` when installed, then
+  `npx --yes cloudflared`, and error only if neither command is available.
+- Windows executable artifacts are ignored.
 
-- A small standard-library CLI under `cmd/rrs` and `internal/cli`.
-- A strict WebSocket client/server protocol under `internal/protocol`.
-- Server authentication and safe listener defaults under `internal/server`.
-- Linux PTY lifecycle management under `internal/terminal`.
-- Cancellable Linux console input and terminal-state restoration under `internal/console`.
-- Unit and Linux integration tests for CLI parsing, URL policy, authentication, protocol validation, PTY behavior, session I/O, resizing, and shutdown.
-- Architecture and protocol documentation under `docs`.
-- GitHub Actions checks for Go 1.26 and 1.27 on Linux, plus cross-platform builds.
+## Windows verification
 
-## Important Files
+Native Windows tests cover PowerShell I/O, resize, normal shell exit,
+descendant-process cleanup, client input cancellation, ConPTY cache repair,
+and conversion of remote SGR click/release/hover reports into native Windows
+`MOUSE_EVENT` records. The race suite passes with MSYS2 UCRT64 GCC.
 
-- `README.md`: supported features, commands, security behavior, and roadmap.
-- `AGENTS.md`: repository-specific engineering rules.
-- `docs/protocol.md`: exact `rrs.v1` wire protocol.
-- `docs/decisions/0001-go-rewrite.md`: architecture decision record.
-- `internal/server/session.go`: WebSocket-to-terminal session orchestration.
-- `internal/terminal/terminal_linux.go`: Linux PTY and process-group lifecycle.
-- `internal/terminal/terminal_unsupported.go`: current non-Linux stub.
-- `internal/console/console_linux.go`: Linux raw console and cancellable reads.
-- `internal/console/console_unsupported.go`: current non-Linux stub.
-- `.github/workflows/ci.yml`: supported checks and build matrix.
+Run the full completion checks from PowerShell:
 
-## Engineering Constraints
-
-- Keep one self-contained executable. Release builds should explicitly use `CGO_ENABLED=0`.
-- Keep platform-specific code behind `internal/terminal` and `internal/console` build-tagged implementations.
-- Do not add Cobra, Viper, dependency-injection frameworks, or generic utility packages without a demonstrated need.
-- Preserve the strict `rrs.v1` protocol. Malformed control text must never reach the shell as input.
-- Do not add automatic TLS downgrade. Remote `ws://` connections require the explicit `--allow-plaintext` option.
-- Do not claim Windows support until terminal creation, resize, console restoration, and child-process cleanup have passed runtime tests on Windows.
-- Keep errors contextual and preserve causes with `%w` where applicable.
-- Keep shutdown paths idempotent and bounded. Avoid goroutines that can remain blocked after a session ends.
-- Do not add `SysProcAttr.Setpgid` to the Linux PTY command while `github.com/creack/pty` starts it with `Setsid`; that combination failed in this environment.
-
-## Environment and Failed Attempts
-
-The source environment is Termux glibc on Linux ARM64 with the official Go 1.26.6 toolchain. Its default toolchain enables cgo, but portable release builds were verified with `CGO_ENABLED=0`.
-
-Two failures were environmental or implementation-specific and should not be rediscovered:
-
-1. `go test -race ./...` cannot run here because ThreadSanitizer exits with:
-
-   ```text
-   FATAL: ThreadSanitizer: unsupported VMA range
-   FATAL: Found 39 - Supported 48
-   ```
-
-   The race check remains in Ubuntu CI. Local race testing was intentionally skipped after confirming this limitation.
-
-2. Combining `SysProcAttr.Setpgid` with the session setup performed by `github.com/creack/pty` caused:
-
-   ```text
-   start bash terminal: fork/exec /data/data/com.termux/files/usr/bin/bash: operation not permitted
-   ```
-
-   Removing the redundant `Setpgid` fixed PTY startup. The PTY package already creates a new session/process group on Linux.
-
-## Windows Work
-
-1. Clone or transfer the repository to Windows, then establish the baseline:
-
-   ```powershell
-   go test -timeout 2m ./...
-   go vet ./...
-   go build ./cmd/rrs
-   ```
-
-2. Implement `internal/terminal/terminal_windows.go` and change the unsupported file's build constraint from non-Linux to non-Linux/non-Windows. Done. The implementation uses `github.com/charmbracelet/x/conpty` and `golang.org/x/sys/windows`.
-
-3. Put the ConPTY shell and descendants in a Windows Job Object configured with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. Done and covered by the Windows runtime terminal test.
-
-4. Implement `internal/console/console_windows.go` and narrow the unsupported console build constraint. Done. Save and restore behavior is implemented, but still needs an interactive Windows runtime test.
-
-5. Add Windows runtime tests for PowerShell startup and I/O, ConPTY resizing, console restoration after success and error paths, clean session cancellation, and descendant-process termination through the Job Object. ConPTY startup, I/O, resizing, and termination are covered. Console restoration and descendant-specific tests remain.
-
-6. Update support claims in `README.md` only after those tests pass on a real Windows host and in Windows CI.
-
-7. After Windows support is stable, continue with updater verification, packaging, and release automation as separate milestones.
-
-The tunnel milestone is now implemented in `internal/tunnel` and exposed as
-`rrs serve --tunnel`. It uses `cloudflared` on `PATH` first and falls back to
-`npx --yes cloudflared`; it errors only when neither command is available.
-
-## Verification Baseline
-
-The following checks passed before the initial commit:
-
-```sh
+```powershell
+gofmt -w .
+go test ./...
+$env:CGO_ENABLED = '1'
+$env:Path = 'C:\msys64\ucrt64\bin;' + $env:Path
+go test -race -timeout 3m ./...
 go vet ./...
-go test -count=3 -timeout 2m ./...
-CGO_ENABLED=0 go build ./cmd/rrs
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ./cmd/rrs
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build ./cmd/rrs
+$env:CGO_ENABLED = '0'
+go build -trimpath -o dist/rrs-windows-amd64.exe ./cmd/rrs
 ```
 
-When resuming, read `AGENTS.md`, this handoff, the protocol document, and the architecture decision before editing platform code. Keep Windows work isolated behind the existing interfaces rather than adding operating-system branches to the server or client packages.
+The protocol is documented in `docs/protocol.md`; the Windows backend decision
+is documented in `docs/decisions/0002-redistributable-conpty.md`.

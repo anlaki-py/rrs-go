@@ -4,8 +4,10 @@ package console
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/anlaki-py/rrs/internal/protocol"
@@ -36,9 +38,9 @@ func enterRaw(input *os.File) (platformState, error) {
 	if err := windows.GetConsoleMode(outputHandle, &outputMode); err != nil {
 		return nil, fmt.Errorf("enter raw mode: read output mode: %w", err)
 	}
-	newInputMode := inputMode &^ (windows.ENABLE_LINE_INPUT | windows.ENABLE_ECHO_INPUT | windows.ENABLE_PROCESSED_INPUT)
-	newInputMode |= windows.ENABLE_VIRTUAL_TERMINAL_INPUT
-	newOutputMode := outputMode | windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING
+	newInputMode := inputMode | windows.ENABLE_VIRTUAL_TERMINAL_INPUT | windows.ENABLE_EXTENDED_FLAGS
+	newInputMode &^= windows.ENABLE_LINE_INPUT | windows.ENABLE_ECHO_INPUT | windows.ENABLE_PROCESSED_INPUT | windows.ENABLE_QUICK_EDIT_MODE
+	newOutputMode := outputMode | windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING | windows.DISABLE_NEWLINE_AUTO_RETURN
 	if err := windows.SetConsoleMode(inputHandle, newInputMode); err != nil {
 		return nil, fmt.Errorf("enter raw mode: set input mode: %w", err)
 	}
@@ -50,13 +52,14 @@ func enterRaw(input *os.File) (platformState, error) {
 }
 
 func (s *windowsState) restore(_ *os.File) error {
+	var inputErr, outputErr error
 	if err := windows.SetConsoleMode(s.input, s.inputMode); err != nil {
-		return fmt.Errorf("restore input mode: %w", err)
+		inputErr = fmt.Errorf("restore input mode: %w", err)
 	}
 	if err := windows.SetConsoleMode(s.output, s.outputMode); err != nil {
-		return fmt.Errorf("restore output mode: %w", err)
+		outputErr = fmt.Errorf("restore output mode: %w", err)
 	}
-	return nil
+	return errors.Join(inputErr, outputErr)
 }
 
 func terminalSize(output *os.File) (protocol.Size, error) {
@@ -72,22 +75,60 @@ func terminalSize(output *os.File) (protocol.Size, error) {
 }
 
 func readInput(ctx context.Context, input *os.File, buffer []byte) (int, error) {
-	result := make(chan readResult, 1)
+	if err := context.Cause(ctx); err != nil {
+		return 0, err
+	}
+	type inputResult struct {
+		count int
+		err   error
+	}
+	threadReady := make(chan windows.Handle, 1)
+	result := make(chan inputResult, 1)
 	go func() {
-		count, err := input.Read(buffer)
-		result <- readResult{count: count, err: err}
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+		thread, err := windows.OpenThread(windows.THREAD_TERMINATE, false, windows.GetCurrentThreadId())
+		if err != nil {
+			threadReady <- 0
+			result <- inputResult{err: fmt.Errorf("open terminal input thread: %w", err)}
+			return
+		}
+		threadReady <- thread
+		count, readErr := input.Read(buffer)
+		result <- inputResult{count: count, err: readErr}
 	}()
+	thread := <-threadReady
+	if thread != 0 {
+		defer windows.CloseHandle(thread)
+	}
 	select {
-	case result := <-result:
-		return result.count, result.err
+	case read := <-result:
+		return read.count, read.err
 	case <-ctx.Done():
-		return 0, context.Cause(ctx)
+	}
+
+	ticker := time.NewTicker(windowsInputPollInterval)
+	defer ticker.Stop()
+	for {
+		if thread != 0 {
+			_ = cancelSynchronousIO(thread)
+		}
+		select {
+		case <-result:
+			return 0, context.Cause(ctx)
+		case <-ticker.C:
+		}
 	}
 }
 
-type readResult struct {
-	count int
-	err   error
+var cancelSynchronousIOProc = windows.NewLazySystemDLL("kernel32.dll").NewProc("CancelSynchronousIo")
+
+func cancelSynchronousIO(thread windows.Handle) error {
+	result, _, callErr := cancelSynchronousIOProc.Call(uintptr(thread))
+	if result == 0 {
+		return callErr
+	}
+	return nil
 }
 
 func resizeEvents(ctx context.Context, output *os.File) <-chan protocol.Size {

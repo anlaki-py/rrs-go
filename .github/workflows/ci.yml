@@ -27,6 +27,26 @@ jobs:
       - run: go test -race -timeout 3m ./...
       - run: CGO_ENABLED=0 go build -trimpath ./cmd/rrs
 
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.x"
+          cache: true
+      - name: Check formatting
+        shell: pwsh
+        run: |
+          $unformatted = gofmt -l .
+          if ($unformatted) {
+            Write-Error "Unformatted files:`n$($unformatted -join "`n")"
+            exit 1
+          }
+      - run: go vet ./...
+      - run: go test -timeout 2m ./...
+      - run: go build -trimpath -o dist/rrs-windows-amd64.exe ./cmd/rrs
+
   cross-build:
     runs-on: ubuntu-latest
     steps:

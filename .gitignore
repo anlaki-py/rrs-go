@@ -1,4 +1,6 @@
 /rrs
 /dist/
+*.exe
+*.exe~
 *.test
 *.out

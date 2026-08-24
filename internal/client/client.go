@@ -18,6 +18,13 @@ import (
 
 const openTimeout = 15 * time.Second
 
+const (
+	enterRemoteTerminal = "\x1b[?1049h\x1b[H\x1b[2J" +
+		"\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h"
+	leaveRemoteTerminal = "\x1b[?1006l\x1b[?1003l\x1b[?1002l\x1b[?1000l" +
+		"\x1b[?1049l"
+)
+
 type Config struct {
 	URL            string
 	Token          string
@@ -46,11 +53,17 @@ func Run(ctx context.Context, config Config, input, output *os.File) (returnErr 
 		return err
 	}
 	defer func() {
+		if _, leaveErr := output.WriteString(leaveRemoteTerminal); leaveErr != nil {
+			returnErr = errors.Join(returnErr, fmt.Errorf("restore local terminal screen: %w", leaveErr))
+		}
 		if restoreErr := console.Restore(input, state); restoreErr != nil {
 			returnErr = errors.Join(returnErr, restoreErr)
 		}
 		_, _ = output.WriteString("\r\n")
 	}()
+	if _, err := output.WriteString(enterRemoteTerminal); err != nil {
+		return fmt.Errorf("prepare local terminal screen: %w", err)
+	}
 
 	sessionCtx, cancel := context.WithCancel(ctx)
 	defer cancel()

@@ -35,6 +35,14 @@ message is never treated as terminal input.
 Each WebSocket message is limited to 1 MiB. RRS does not interpret terminal
 escape sequences.
 
+## Local terminal behavior
+
+The reference client enters the alternate screen while connected and restores
+the previous screen on exit. It also enables SGR mouse reporting so Windows
+console applications behind ConPTY can receive native click, release, drag,
+scroll, and hover events. Mouse reports remain binary terminal input; they do
+not add a protocol message type.
+
 ## Closure
 
 Normal shell exit uses WebSocket status 1000. Server shutdown uses status 1001.

@@ -16,7 +16,7 @@ const serveHelp = `Usage: rrs serve [options]
 
 Options:
   --host <address>       Listener address (HOST, default: 127.0.0.1)
-  --port <number>        Listener port (PORT, default: 7860)
+  --port <number>        Listener port (PORT, default: 7000)
   --token <value>        WebSocket bearer token (RRS_TOKEN)
   --no-auth              Explicitly run without authentication
   --max-sessions <count> Maximum concurrent shells (default: 8)
@@ -36,7 +36,7 @@ type serveConfig struct {
 func parseServe(args []string, environment environment) (serveConfig, bool, error) {
 	flags := newFlagSet("serve")
 	host := flags.String("host", environmentValue(environment, "HOST", "127.0.0.1"), "")
-	portValue := flags.String("port", environmentValue(environment, "PORT", "7860"), "")
+	portValue := flags.String("port", environmentValue(environment, "PORT", "7000"), "")
 	token := flags.String("token", environmentValue(environment, "RRS_TOKEN", ""), "")
 	noAuth := flags.Bool("no-auth", false, "")
 	maxSessions := flags.Int("max-sessions", 8, "")

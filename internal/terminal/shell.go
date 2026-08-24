@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 type shellCommand struct {
@@ -39,7 +40,7 @@ func sessionEnvironment(base []string) []string {
 func setEnvironment(environment []string, key, value string) []string {
 	prefix := key + "="
 	for index, entry := range environment {
-		if len(entry) >= len(prefix) && entry[:len(prefix)] == prefix {
+		if len(entry) >= len(prefix) && strings.EqualFold(entry[:len(prefix)], prefix) {
 			environment[index] = prefix + value
 			return environment
 		}

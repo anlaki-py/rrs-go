@@ -13,7 +13,7 @@ func TestNormalizeURL(t *testing.T) {
 		{input: "example.com", want: "wss://example.com"},
 		{input: "http://example.com/path", want: "ws://example.com/path"},
 		{input: "https://example.com", want: "wss://example.com"},
-		{input: "ws://127.0.0.1:7860", want: "ws://127.0.0.1:7860"},
+		{input: "ws://127.0.0.1:7000", want: "ws://127.0.0.1:7000"},
 		{input: "ftp://example.com", wantErr: true},
 		{input: "ws:///missing-host", wantErr: true},
 		{input: "ws://user@example.com", wantErr: true},

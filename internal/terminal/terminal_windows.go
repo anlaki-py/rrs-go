@@ -6,22 +6,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"sync"
-	"syscall"
-	"time"
 	"unsafe"
 
 	"github.com/anlaki-py/rrs/internal/protocol"
-	"github.com/charmbracelet/x/conpty"
 	"golang.org/x/sys/windows"
 )
 
-const windowsGracefulTermination = 750 * time.Millisecond
-
 type windowsSession struct {
-	pty           *conpty.ConPty
+	pty           *windowsPTY
 	process       windows.Handle
 	job           windows.Handle
 	pid           int
@@ -37,7 +31,7 @@ func startPlatform(options StartOptions) (platformSession, error) {
 		return nil, err
 	}
 
-	pty, err := conpty.New(int(options.Size.Cols), int(options.Size.Rows), 0)
+	pty, err := newWindowsPTY(int(options.Size.Cols), int(options.Size.Rows))
 	if err != nil {
 		return nil, fmt.Errorf("create %s terminal: %w", shellName(shell), err)
 	}
@@ -47,21 +41,20 @@ func startPlatform(options StartOptions) (platformSession, error) {
 		return nil, fmt.Errorf("create terminal job: %w", err)
 	}
 
-	pid, process, err := pty.Spawn(shell.path, shell.args, &syscall.ProcAttr{
-		Dir: os.Getenv("USERPROFILE"),
-		Env: sessionEnvironment(os.Environ()),
-	})
+	directory := os.Getenv("USERPROFILE")
+	if directory == "" {
+		directory, err = os.Getwd()
+		if err != nil {
+			_ = windows.CloseHandle(job)
+			_ = pty.Close()
+			return nil, fmt.Errorf("determine terminal working directory: %w", err)
+		}
+	}
+	pid, process, err := pty.Spawn(shell.path, shell.args, sessionEnvironment(os.Environ()), directory, job)
 	if err != nil {
 		_ = windows.CloseHandle(job)
 		_ = pty.Close()
 		return nil, fmt.Errorf("start %s terminal: %w", shellName(shell), err)
-	}
-	if err := windows.AssignProcessToJobObject(job, windows.Handle(process)); err != nil {
-		_ = windows.TerminateProcess(windows.Handle(process), 1)
-		_ = windows.CloseHandle(windows.Handle(process))
-		_ = windows.CloseHandle(job)
-		_ = pty.Close()
-		return nil, fmt.Errorf("assign %s terminal to job: %w", shellName(shell), err)
 	}
 
 	session := &windowsSession{
@@ -97,11 +90,7 @@ func (s *windowsSession) wait() {
 func (s *windowsSession) PID() int { return s.pid }
 
 func (s *windowsSession) Read(p []byte) (int, error) {
-	n, err := s.pty.Read(p)
-	if errors.Is(err, windows.ERROR_BROKEN_PIPE) {
-		return n, io.EOF
-	}
-	return n, err
+	return s.pty.Read(p)
 }
 
 func (s *windowsSession) Write(p []byte) (int, error) { return s.pty.Write(p) }
@@ -119,13 +108,6 @@ func (s *windowsSession) Terminate(ctx context.Context) error {
 			return
 		}
 		_ = windows.TerminateJobObject(s.job, 1)
-		timer := time.NewTimer(windowsGracefulTermination)
-		defer timer.Stop()
-		select {
-		case <-s.waitDone:
-		case <-timer.C:
-		case <-ctx.Done():
-		}
 	})
 	select {
 	case <-s.waitDone:
@@ -138,9 +120,9 @@ func (s *windowsSession) Terminate(ctx context.Context) error {
 func (s *windowsSession) Close() error {
 	s.closeOnce.Do(func() {
 		s.closeErr = errors.Join(
+			windows.CloseHandle(s.job),
 			s.pty.Close(),
 			windows.CloseHandle(s.process),
-			windows.CloseHandle(s.job),
 		)
 	})
 	return s.closeErr

@@ -80,6 +80,40 @@ func TestParseConnect(t *testing.T) {
 	}
 }
 
+func TestParseConnectAcceptsOptionsAfterURL(t *testing.T) {
+	t.Parallel()
+
+	config, help, err := parseConnect(
+		[]string{"ws://192.168.1.20:7000", "--token", "ooo", "--allow-plaintext"},
+		testEnvironment{},
+	)
+	if err != nil {
+		t.Fatalf("parseConnect() error = %v", err)
+	}
+	want := client.Config{URL: "ws://192.168.1.20:7000", Token: "ooo", AllowPlaintext: true}
+	if help || config != want {
+		t.Fatalf("parseConnect() = %#v, %v; want %#v, false", config, help, want)
+	}
+}
+
+func TestParseConnectAllowsRemotePlaintextByDefault(t *testing.T) {
+	t.Parallel()
+
+	config, help, err := parseConnect([]string{"ws://192.168.1.20:7000"}, testEnvironment{})
+	if err != nil || help || !config.AllowPlaintext {
+		t.Fatalf("parseConnect() = %#v, help=%v, error=%v", config, help, err)
+	}
+}
+
+func TestParseServeUsesPort7000ByDefault(t *testing.T) {
+	t.Parallel()
+
+	config, help, err := parseServe(nil, testEnvironment{})
+	if err != nil || help || config.port != 7000 {
+		t.Fatalf("parseServe() = %#v, help=%v, error=%v", config, help, err)
+	}
+}
+
 func TestRunHelp(t *testing.T) {
 	t.Parallel()
 

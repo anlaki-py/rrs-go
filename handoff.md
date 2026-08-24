@@ -1,55 +1,55 @@
-# RRS handoff
+# Handoff: one-command GitHub installation
+
+## Goal
+
+Make RRS easy to install from `https://github.com/anlaki-py/rrs-go` with one
+command. The install flow must support Linux and Windows amd64 without requiring
+users to clone the repository or install Go.
 
 ## Current state
 
-RRS is a pure-Go remote shell for Linux and Windows amd64. The active branch is
-`master`. A safety copy of the pre-redo history exists locally as
-`backup/pre-model-redo-a54af55`.
+The Windows amd64 port is complete. Linux amd64 and arm64 builds also work. The
+`master` branch matches `origin/master` as of 2026-08-25.
 
-The Windows port now uses Microsoft's redistributable ConPTY rather than the
-Windows 10 inbox implementation. Version `1.24.260710001` is embedded in the
-Windows executable and materialized under the user's versioned cache at
-runtime. This is required for native Windows fullscreen TUI mouse input on
-older Windows 10 builds.
+`.github/workflows/ci.yml` tests and builds all supported targets, but it does
+not publish release artifacts. There is no installer script or release workflow
+yet.
 
-## Implemented behavior
+## Files involved
 
-- `rrs serve` defaults to port 7000.
-- `rrs connect` accepts flags before or after its URL.
-- Remote `ws://` connections are allowed by default; `--allow-plaintext`
-  remains accepted for compatibility.
-- Windows sessions start Windows PowerShell with normal profile loading.
-- Windows process trees are assigned to a kill-on-close Job Object before the
-  suspended shell starts.
-- Normal PowerShell `exit` closes terminal output and the WebSocket session.
-- Clients enter an alternate screen and restore it on disconnect.
-- Clients enable click, drag, scroll, and hover mouse reporting during a
-  session.
-- Windows client reads are canceled with `CancelSynchronousIo`, with no
-  abandoned read goroutine.
-- Cloudflare tunnels use `cloudflared` when installed, then
-  `npx --yes cloudflared`, and error only if neither command is available.
-- Windows executable artifacts are ignored.
+- `.github/workflows/ci.yml` tests and builds supported targets.
+- `README.md` contains the current build and usage instructions.
+- `internal/buildinfo/buildinfo.go` contains build metadata support.
 
-## Windows verification
+## Constraints
 
-Native Windows tests cover PowerShell I/O, resize, normal shell exit,
-descendant-process cleanup, client input cancellation, ConPTY cache repair,
-and conversion of remote SGR click/release/hover reports into native Windows
-`MOUSE_EVENT` records. The race suite passes with MSYS2 UCRT64 GCC.
+- Release and cross-build commands must set `CGO_ENABLED=0`.
+- Support Linux amd64, Linux arm64, and Windows amd64.
+- Verify downloaded binaries with checksums.
+- Do not require Go on the user's machine.
+- Keep installation non-interactive by default and report where `rrs` was put.
 
-Run the full completion checks from PowerShell:
+## Next steps
 
-```powershell
-gofmt -w .
+First, decide the cleanest one-command installation experience for Linux shells
+and Windows PowerShell. Then add tagged GitHub release builds, checksums, and the
+small installer scripts those commands download.
+
+The installer must select the correct OS and architecture, download a pinned or
+latest release from GitHub, verify its checksum, install it into a sensible user
+binary directory, and explain any required PATH change.
+
+Update `README.md` with the final commands and test installation on a clean Linux
+environment and a clean Windows environment.
+
+## How to verify current state
+
+Run:
+
+```sh
+git status --short --branch
 go test ./...
-$env:CGO_ENABLED = '1'
-$env:Path = 'C:\msys64\ucrt64\bin;' + $env:Path
-go test -race -timeout 3m ./...
-go vet ./...
-$env:CGO_ENABLED = '0'
-go build -trimpath -o dist/rrs-windows-amd64.exe ./cmd/rrs
 ```
 
-The protocol is documented in `docs/protocol.md`; the Windows backend decision
-is documented in `docs/decisions/0002-redistributable-conpty.md`.
+Then inspect `.github/workflows/ci.yml` and the GitHub Releases page before
+designing the release workflow.

@@ -44,6 +44,26 @@ func TestParseServeRejectsPublicUnauthenticatedListener(t *testing.T) {
 	}
 }
 
+func TestParseServeEnablesTunnel(t *testing.T) {
+	t.Parallel()
+
+	config, help, err := parseServe([]string{"--tunnel"}, testEnvironment{})
+	if err != nil || help || !config.tunnel {
+		t.Fatalf("parseServe() = %#v, help=%v, err=%v", config, help, err)
+	}
+}
+
+func TestTunnelLocalAddressUsesLoopbackForWildcardListeners(t *testing.T) {
+	t.Parallel()
+
+	if got := tunnelLocalAddress("0.0.0.0", "0.0.0.0:7860"); got != "127.0.0.1:7860" {
+		t.Fatalf("tunnelLocalAddress() = %q", got)
+	}
+	if got := tunnelLocalAddress("::", "[::]:7860"); got != "[::1]:7860" {
+		t.Fatalf("tunnelLocalAddress() = %q", got)
+	}
+}
+
 func TestParseConnect(t *testing.T) {
 	t.Parallel()
 

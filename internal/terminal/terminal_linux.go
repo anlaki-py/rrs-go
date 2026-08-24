@@ -112,12 +112,3 @@ func (s *linuxSession) Close() error {
 	})
 	return s.closeErr
 }
-
-func processDone(done <-chan struct{}) bool {
-	select {
-	case <-done:
-		return true
-	default:
-		return false
-	}
-}

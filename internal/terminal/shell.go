@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 )
 
 type shellCommand struct {
@@ -12,6 +13,9 @@ type shellCommand struct {
 }
 
 func selectShell(configured string) (shellCommand, error) {
+	if runtime.GOOS == "windows" {
+		return selectWindowsShell(configured)
+	}
 	if configured != "" {
 		path, err := exec.LookPath(configured)
 		if err == nil {

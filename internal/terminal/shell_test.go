@@ -1,7 +1,9 @@
 package terminal
 
 import (
+	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -12,10 +14,17 @@ func TestSelectShellFallsBackToBash(t *testing.T) {
 	if err != nil {
 		t.Fatalf("selectShell() error = %v", err)
 	}
-	if filepath.Base(shell.path) != "bash" {
-		t.Fatalf("selectShell() path = %q, want Bash", shell.path)
+	want := "bash"
+	if runtime.GOOS == "windows" {
+		want = filepath.Base(os.Getenv("COMSPEC"))
+		if want == "." || want == "" {
+			want = "cmd.exe"
+		}
 	}
-	if len(shell.args) != 1 || shell.args[0] != "-i" {
+	if filepath.Base(shell.path) != want {
+		t.Fatalf("selectShell() path = %q, want %s", shell.path, want)
+	}
+	if runtime.GOOS != "windows" && (len(shell.args) != 1 || shell.args[0] != "-i") {
 		t.Fatalf("selectShell() args = %#v, want [-i]", shell.args)
 	}
 }

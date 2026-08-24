@@ -14,8 +14,8 @@ Continue the RRS rewrite as a maintainable, self-contained Go executable. This i
 - Linux PTY sessions, terminal resizing, bearer authentication, health/info endpoints, and orderly session shutdown are implemented and tested.
 - The WebSocket protocol is documented and versioned as `rrs.v1`.
 - Linux ARM64, Linux AMD64, and Windows AMD64 builds compile with `CGO_ENABLED=0`.
-- Windows currently compiles through unsupported-platform stubs; it does not yet provide a usable terminal session.
-- Tunneling, self-update, packaging, and release automation are not implemented.
+- Windows ConPTY server sessions now provide usable terminal I/O, resizing, and Job Object cleanup. Client console runtime coverage and Windows CI are still pending.
+- Cloudflare Quick Tunnel support is implemented through an installed `cloudflared` command. Self-update, packaging, and release automation are not implemented.
 - No Git remote is configured. This handoff is included in the initial commit, but the repository must be pushed or otherwise transferred before it can be cloned on Windows.
 
 ## What Was Implemented
@@ -87,17 +87,21 @@ Two failures were environmental or implementation-specific and should not be red
    go build ./cmd/rrs
    ```
 
-2. Implement `internal/terminal/terminal_windows.go` and change the unsupported file's build constraint from non-Linux to non-Linux/non-Windows. `github.com/charmbracelet/x/conpty` is the preferred starting point, with `golang.org/x/sys/windows` for native lifecycle primitives. Confirm the dependency APIs against their current official source before integrating them.
+2. Implement `internal/terminal/terminal_windows.go` and change the unsupported file's build constraint from non-Linux to non-Linux/non-Windows. Done. The implementation uses `github.com/charmbracelet/x/conpty` and `golang.org/x/sys/windows`.
 
-3. Put the ConPTY shell and descendants in a Windows Job Object configured with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. Ensure close, wait, and concurrent shutdown paths are safe and idempotent.
+3. Put the ConPTY shell and descendants in a Windows Job Object configured with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. Done and covered by the Windows runtime terminal test.
 
-4. Implement `internal/console/console_windows.go` and narrow the unsupported console build constraint. Save and exactly restore the original input/output console modes. Enable virtual-terminal input/output only for the active session.
+4. Implement `internal/console/console_windows.go` and narrow the unsupported console build constraint. Done. Save and restore behavior is implemented, but still needs an interactive Windows runtime test.
 
-5. Add Windows runtime tests for PowerShell startup and I/O, ConPTY resizing, console restoration after success and error paths, clean session cancellation, and descendant-process termination through the Job Object.
+5. Add Windows runtime tests for PowerShell startup and I/O, ConPTY resizing, console restoration after success and error paths, clean session cancellation, and descendant-process termination through the Job Object. ConPTY startup, I/O, resizing, and termination are covered. Console restoration and descendant-specific tests remain.
 
 6. Update support claims in `README.md` only after those tests pass on a real Windows host and in Windows CI.
 
-7. After Windows support is stable, continue with tunneling, updater verification, packaging, and release automation as separate milestones.
+7. After Windows support is stable, continue with updater verification, packaging, and release automation as separate milestones.
+
+The tunnel milestone is now implemented in `internal/tunnel` and exposed as
+`rrs serve --tunnel`. It uses `cloudflared` on `PATH` first and falls back to
+`npx --yes cloudflared`; it errors only when neither command is available.
 
 ## Verification Baseline
 

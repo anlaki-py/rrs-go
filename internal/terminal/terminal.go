@@ -25,6 +25,15 @@ type platformSession interface {
 	Terminate(context.Context) error
 }
 
+func processDone(done <-chan struct{}) bool {
+	select {
+	case <-done:
+		return true
+	default:
+		return false
+	}
+}
+
 func Start(options StartOptions) (*Session, error) {
 	if err := options.Size.Validate(); err != nil {
 		return nil, err

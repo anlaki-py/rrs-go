@@ -6,8 +6,10 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"strings"
 
 	"github.com/anlaki-py/rrs/internal/server"
+	"github.com/anlaki-py/rrs/internal/tunnel"
 )
 
 const serveHelp = `Usage: rrs serve [options]
@@ -18,6 +20,7 @@ Options:
   --token <value>        WebSocket bearer token (RRS_TOKEN)
   --no-auth              Explicitly run without authentication
   --max-sessions <count> Maximum concurrent shells (default: 8)
+  --tunnel               Expose the server through a Cloudflare Quick Tunnel
   -h, --help             Show this help
 `
 
@@ -27,6 +30,7 @@ type serveConfig struct {
 	token       string
 	noAuth      bool
 	maxSessions int
+	tunnel      bool
 }
 
 func parseServe(args []string, environment environment) (serveConfig, bool, error) {
@@ -36,6 +40,7 @@ func parseServe(args []string, environment environment) (serveConfig, bool, erro
 	token := flags.String("token", environmentValue(environment, "RRS_TOKEN", ""), "")
 	noAuth := flags.Bool("no-auth", false, "")
 	maxSessions := flags.Int("max-sessions", 8, "")
+	quickTunnel := flags.Bool("tunnel", false, "")
 	helpRequested := flags.Bool("help", false, "")
 	flags.BoolVar(helpRequested, "h", false, "")
 	if err := flags.Parse(args); err != nil {
@@ -67,6 +72,7 @@ func parseServe(args []string, environment environment) (serveConfig, bool, erro
 		token:       *token,
 		noAuth:      *noAuth || *token == "",
 		maxSessions: *maxSessions,
+		tunnel:      *quickTunnel,
 	}, false, nil
 }
 
@@ -97,6 +103,32 @@ func runServe(ctx context.Context, args []string, environment environment, stdou
 	if config.noAuth {
 		_, _ = fmt.Fprintln(stderr, "rrs: warning: server is running without authentication")
 	}
+	var runningTunnel *tunnel.Running
+	if config.tunnel {
+		localURL := fmt.Sprintf("http://%s", tunnelLocalAddress(config.host, listener.Addr().String()))
+		runningTunnel, err = tunnel.Start(ctx, localURL)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = runningTunnel.Close() }()
+	}
 	_, _ = fmt.Fprintf(stdout, "RRS listening on %s\n", listener.Addr())
+	if runningTunnel != nil {
+		_, _ = fmt.Fprintf(stdout, "RRS tunnel available at %s\n", runningTunnel.URL)
+	}
 	return service.Serve(ctx, listener)
+}
+
+func tunnelLocalAddress(configuredHost, listenerAddress string) string {
+	host, port, err := net.SplitHostPort(listenerAddress)
+	if err != nil {
+		return listenerAddress
+	}
+	if strings.EqualFold(configuredHost, "0.0.0.0") || host == "0.0.0.0" {
+		host = "127.0.0.1"
+	}
+	if configuredHost == "::" || host == "::" {
+		host = "::1"
+	}
+	return net.JoinHostPort(host, port)
 }

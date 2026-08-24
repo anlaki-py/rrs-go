@@ -3,9 +3,10 @@
 RRS provides an interactive Linux shell over WebSockets as one Go executable.
 This repository is the in-progress rewrite of Random Remote Shell.
 
-The current milestone supports Linux clients and servers. Windows binaries
-compile with a clear unsupported-platform error while ConPTY support is being
-built and tested.
+The current milestone supports Linux clients and servers. Windows ConPTY
+server sessions now start, exchange input and output, resize, and terminate
+their child process tree. Windows client console restoration and CI coverage
+are still pending, so Windows is not listed as fully supported yet.
 
 ## Build
 
@@ -36,6 +37,13 @@ Start a network-accessible server with a token:
 RRS_TOKEN='replace-me' ./rrs serve --host 0.0.0.0
 ```
 
+Expose a local server through a Cloudflare Quick Tunnel. RRS uses an installed
+`cloudflared` command when available, then falls back to `npx --yes cloudflared`:
+
+```sh
+./rrs serve --tunnel
+```
+
 Connect from an interactive terminal:
 
 ```sh
@@ -59,6 +67,6 @@ The wire contract is documented in [docs/protocol.md](docs/protocol.md).
 - Linux PTY server and interactive client
 - Versioned WebSocket protocol
 - Authentication and safe listener defaults
-- Windows ConPTY support: pending
-- Cloudflare tunnel support: pending
+- Windows ConPTY server sessions: implemented; client console validation pending
+- Cloudflare Quick Tunnel support
 - Self-update: pending

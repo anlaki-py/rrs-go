@@ -1,0 +1,4 @@
+/rrs
+/dist/
+*.test
+*.out

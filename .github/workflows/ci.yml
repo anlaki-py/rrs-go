@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ["1.26.x", "1.27.x"]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test -timeout 2m ./...
+      - run: go test -race -timeout 3m ./...
+      - run: CGO_ENABLED=0 go build -trimpath ./cmd/rrs
+
+  cross-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27.x"
+          cache: true
+      - run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o dist/rrs-linux-amd64 ./cmd/rrs
+      - run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o dist/rrs-linux-arm64 ./cmd/rrs
+      - run: CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -o dist/rrs-windows-amd64.exe ./cmd/rrs

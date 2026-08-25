@@ -8,6 +8,25 @@ PowerShell profiles, and run inside Microsoft's redistributable ConPTY host.
 The host is embedded in `rrs.exe` and extracted to a versioned user cache when
 needed, so there is no separate runtime installation.
 
+## Install
+
+One-command install on Linux. The script detects your architecture, verifies
+the sha256 checksum, and installs to `~/.local/bin`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/anlaki-py/rrs-go/master/install.sh | sh
+```
+
+Pin a version or change the install directory with environment variables:
+
+```sh
+RRS_VERSION=v0.0.1 RRS_INSTALL_DIR=/other/bin sh install.sh
+```
+
+Windows has no installer yet; download `rrs-windows-amd64.exe` from the
+[releases page](https://github.com/anlaki-py/rrs-go/releases). Checksums for
+every asset are in each release's `checksums.txt`.
+
 ## Build
 
 RRS requires Go 1.26 or newer.

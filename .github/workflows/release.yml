@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release tag, e.g. v0.0.1'
+        required: true
+        default: 'v0.0.1'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
+env:
+  VERSION: ${{ inputs.version }}
+
+jobs:
+  quality:
+    name: Linux checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check the tag is unused
+        run: |
+          if git ls-remote origin "refs/tags/${VERSION}" | grep -q .; then
+            echo "::error::tag ${VERSION} already exists"
+            exit 1
+          fi
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27.x"
+          cache: true
+      - run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test -timeout 2m ./...
+      - run: go test -race -timeout 3m ./...
+
+  windows-tests:
+    name: Windows tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.x"
+          cache: true
+      - run: go vet ./...
+      - run: go test -timeout 2m ./...
+
+  publish:
+    name: Build and publish
+    needs: [quality, windows-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27.x"
+          cache: true
+      - name: Build release binaries
+        run: |
+          for target in linux/amd64 linux/arm64 windows/amd64; do
+            os=${target%/*}
+            arch=${target#*/}
+            ext=""
+            if [ "$os" = "windows" ]; then
+              ext=".exe"
+            fi
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
+              go build -trimpath \
+              -ldflags="-X github.com/anlaki-py/rrs-go/internal/buildinfo.Version=${VERSION}" \
+              -o "dist/rrs-${os}-${arch}${ext}" ./cmd/rrs
+          done
+      - name: Smoke-test the built version
+        run: |
+          built=$(./dist/rrs-linux-amd64 --version)
+          if [ "$built" != "$VERSION" ]; then
+            echo "::error::binary reports '$built' but expected '$VERSION'"
+            exit 1
+          fi
+      - name: Write checksums
+        run: |
+          (
+            cd dist
+            sha256sum rrs-linux-amd64 rrs-linux-arm64 rrs-windows-amd64.exe > checksums.txt
+            cat checksums.txt
+          )
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$VERSION" \
+            --target "$GITHUB_SHA" \
+            --title "rrs $VERSION" \
+            --generate-notes \
+            dist/rrs-linux-amd64 \
+            dist/rrs-linux-arm64 \
+            dist/rrs-windows-amd64.exe \
+            dist/checksums.txt

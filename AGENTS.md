@@ -30,6 +30,19 @@ go vet ./...
 gofmt -w .
 ```
 
+Cut a release by running the manual workflow, then verify it published:
+
+```sh
+gh workflow run release.yml -f version=v0.0.1
+gh run watch
+gh release view v0.0.1
+```
+
+Release tags start at v0.0.1 and are immutable once published. The release
+job gates on the same checks as CI, injects the tag into `buildinfo.Version`,
+and publishes stable-named binaries plus `checksums.txt`, which install.sh
+consumes through the `releases/latest/download` redirect.
+
 Release and cross-build commands must set `CGO_ENABLED=0` explicitly.
 
 ## Conventions

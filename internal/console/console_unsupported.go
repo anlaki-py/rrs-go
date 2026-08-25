@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/anlaki-py/rrs/internal/protocol"
+	"github.com/anlaki-py/rrs-go/internal/protocol"
 )
 
 func enterRaw(*os.File) (platformState, error) {

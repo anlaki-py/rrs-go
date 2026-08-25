@@ -11,7 +11,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/anlaki-py/rrs/internal/protocol"
+	"github.com/anlaki-py/rrs-go/internal/protocol"
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 )

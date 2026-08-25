@@ -11,8 +11,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/anlaki-py/rrs/internal/console"
-	"github.com/anlaki-py/rrs/internal/protocol"
+	"github.com/anlaki-py/rrs-go/internal/console"
+	"github.com/anlaki-py/rrs-go/internal/protocol"
 	"github.com/coder/websocket"
 )
 

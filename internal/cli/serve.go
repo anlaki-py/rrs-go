@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/anlaki-py/rrs/internal/server"
-	"github.com/anlaki-py/rrs/internal/tunnel"
+	"github.com/anlaki-py/rrs-go/internal/server"
+	"github.com/anlaki-py/rrs-go/internal/tunnel"
 )
 
 const serveHelp = `Usage: rrs serve [options]

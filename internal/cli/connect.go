@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/anlaki-py/rrs/internal/client"
+	"github.com/anlaki-py/rrs-go/internal/client"
 )
 
 const connectHelp = `Usage: rrs connect [options] <url>

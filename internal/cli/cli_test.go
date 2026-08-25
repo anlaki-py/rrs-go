@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/anlaki-py/rrs/internal/client"
+	"github.com/anlaki-py/rrs-go/internal/client"
 )
 
 type testEnvironment map[string]string

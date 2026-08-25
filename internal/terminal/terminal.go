@@ -5,7 +5,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/anlaki-py/rrs/internal/protocol"
+	"github.com/anlaki-py/rrs-go/internal/protocol"
 )
 
 var errUnsupported = errors.New("terminal sessions are unsupported on this platform")

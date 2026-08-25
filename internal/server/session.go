@@ -8,8 +8,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/anlaki-py/rrs/internal/protocol"
-	"github.com/anlaki-py/rrs/internal/terminal"
+	"github.com/anlaki-py/rrs-go/internal/protocol"
+	"github.com/anlaki-py/rrs-go/internal/terminal"
 	"github.com/coder/websocket"
 )
 

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/anlaki-py/rrs/internal/protocol"
+	"github.com/anlaki-py/rrs-go/internal/protocol"
 )
 
 func TestLinuxTerminalStartsAndStops(t *testing.T) {

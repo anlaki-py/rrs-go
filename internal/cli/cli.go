@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/anlaki-py/rrs/internal/buildinfo"
+	"github.com/anlaki-py/rrs-go/internal/buildinfo"
 )
 
 const help = `RRS - Random Remote Shell

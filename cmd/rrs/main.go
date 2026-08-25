@@ -6,7 +6,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/anlaki-py/rrs/internal/cli"
+	"github.com/anlaki-py/rrs-go/internal/cli"
 )
 
 func main() {

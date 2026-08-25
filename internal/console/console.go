@@ -5,7 +5,7 @@ import (
 	"errors"
 	"os"
 
-	"github.com/anlaki-py/rrs/internal/protocol"
+	"github.com/anlaki-py/rrs-go/internal/protocol"
 )
 
 var errUnsupported = errors.New("interactive console is unsupported on this platform")

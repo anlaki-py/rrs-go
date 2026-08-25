@@ -131,8 +131,12 @@ hash_file() {
 }
 
 work_dir=$(mktemp -d "${TMPDIR:-/tmp}/rrs-install.XXXXXX") || die "cannot create a temporary directory"
+staged=""
 cleanup() {
 	rm -rf "$work_dir"
+	if [ -n "$staged" ]; then
+		rm -f "$staged"
+	fi
 }
 trap cleanup EXIT
 trap 'exit 130' INT
@@ -164,7 +168,13 @@ case $install_dir in
 esac
 destination="$install_dir/$BINARY_NAME"
 
-if [ -e "$destination" ]; then
+if [ -e "$destination" ] || [ -L "$destination" ]; then
+	if [ -d "$destination" ]; then
+		die "cannot install over directory $destination"
+	fi
+	if [ ! -f "$destination" ]; then
+		die "cannot install over non-regular file $destination"
+	fi
 	if [ "$(hash_file "$destination" 2>/dev/null || true)" = "$actual_hash" ]; then
 		log "$BINARY_NAME is already installed at $destination with this exact version"
 		exit 0
@@ -178,21 +188,20 @@ if [ ! -d "$install_dir" ]; then
 fi
 
 # Stage inside the install directory so the final move is an atomic rename.
-staged="$install_dir/.rrs.$$.tmp"
+staged=$(mktemp "$install_dir/.rrs.XXXXXX") || die "cannot create a temporary file in $install_dir"
 cp "$work_dir/$asset" "$staged" || {
-	rm -f "$staged"
 	die "cannot write to $install_dir"
 }
-chmod 0755 "$staged"
+chmod 0755 "$staged" || die "cannot make the staged binary executable"
 mv -f "$staged" "$destination" || {
-	rm -f "$staged"
 	die "cannot move the binary into place at $destination"
 }
+staged=""
 
 if installed_version=$("$destination" --version 2>/dev/null); then
 	log "installed $BINARY_NAME $installed_version to $destination"
 else
-	warn "installed $BINARY_NAME to $destination but could not execute it to confirm the version"
+	die "installed $BINARY_NAME to $destination but could not execute it to confirm the version"
 fi
 
 case ":${PATH}:" in

@@ -10,9 +10,9 @@ import (
 	"github.com/anlaki-py/rrs-go/internal/client"
 )
 
-const connectHelp = `Usage: rrs connect [options] <url>
+const connectHelp = `Usage: rrs connect [options] <address>
 
-HTTP URLs are converted to their WebSocket equivalent.
+Bare addresses use ws://. HTTP and HTTPS URLs are converted to ws:// and wss://.
 
 Options:
   --token <value>        WebSocket bearer token (RRS_TOKEN)

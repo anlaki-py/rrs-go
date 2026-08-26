@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -112,11 +113,76 @@ func runServe(ctx context.Context, args []string, environment environment, stdou
 		}
 		defer func() { _ = runningTunnel.Close() }()
 	}
-	_, _ = fmt.Fprintf(stdout, "RRS listening on %s\n", listener.Addr())
+	listenURLs, addressErr := listeningURLs(config.host, listener.Addr().String(), net.InterfaceAddrs)
+	if addressErr != nil {
+		_, _ = fmt.Fprintf(stderr, "rrs: warning: list interface addresses: %v\n", addressErr)
+	}
+	_, _ = fmt.Fprintln(stdout, "RRS listening on:")
+	for _, listenURL := range listenURLs {
+		_, _ = fmt.Fprintf(stdout, "  %s\n", listenURL)
+	}
 	if runningTunnel != nil {
 		_, _ = fmt.Fprintf(stdout, "RRS tunnel available at %s\n", runningTunnel.URL)
 	}
 	return service.Serve(ctx, listener)
+}
+
+func listeningURLs(configuredHost, listenerAddress string, interfaceAddresses func() ([]net.Addr, error)) ([]string, error) {
+	host, port, err := net.SplitHostPort(listenerAddress)
+	if err != nil {
+		return []string{"ws://" + listenerAddress}, nil
+	}
+
+	listenerIP := net.ParseIP(host)
+	wildcardIP := listenerIP
+	if configuredIP := net.ParseIP(configuredHost); configuredIP != nil && configuredIP.IsUnspecified() {
+		wildcardIP = configuredIP
+	}
+	if wildcardIP == nil || !wildcardIP.IsUnspecified() {
+		return []string{"ws://" + net.JoinHostPort(host, port)}, nil
+	}
+
+	addresses, addressErr := interfaceAddresses()
+	hosts := make(map[string]struct{}, len(addresses))
+	for _, address := range addresses {
+		ip := interfaceIP(address)
+		if ip == nil || ip.IsUnspecified() || ip.IsMulticast() || ip.IsLinkLocalUnicast() {
+			continue
+		}
+		if (wildcardIP.To4() != nil) != (ip.To4() != nil) {
+			continue
+		}
+		hosts[ip.String()] = struct{}{}
+	}
+	if len(hosts) == 0 {
+		if wildcardIP.To4() != nil {
+			hosts["127.0.0.1"] = struct{}{}
+		} else {
+			hosts["::1"] = struct{}{}
+		}
+	}
+
+	sortedHosts := make([]string, 0, len(hosts))
+	for availableHost := range hosts {
+		sortedHosts = append(sortedHosts, availableHost)
+	}
+	sort.Strings(sortedHosts)
+	urls := make([]string, 0, len(sortedHosts))
+	for _, availableHost := range sortedHosts {
+		urls = append(urls, "ws://"+net.JoinHostPort(availableHost, port))
+	}
+	return urls, addressErr
+}
+
+func interfaceIP(address net.Addr) net.IP {
+	switch value := address.(type) {
+	case *net.IPNet:
+		return value.IP
+	case *net.IPAddr:
+		return value.IP
+	default:
+		return nil
+	}
 }
 
 func tunnelLocalAddress(configuredHost, listenerAddress string) string {

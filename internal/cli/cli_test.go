@@ -3,7 +3,10 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
+	"net"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -61,6 +64,83 @@ func TestTunnelLocalAddressUsesLoopbackForWildcardListeners(t *testing.T) {
 	}
 	if got := tunnelLocalAddress("::", "[::]:7860"); got != "[::1]:7860" {
 		t.Fatalf("tunnelLocalAddress() = %q", got)
+	}
+}
+
+func TestListeningURLsShowsAvailableIPv4AddressesForWildcardListener(t *testing.T) {
+	t.Parallel()
+
+	interfaceAddresses := func() ([]net.Addr, error) {
+		return []net.Addr{
+			&net.IPNet{IP: net.ParseIP("192.168.1.20"), Mask: net.CIDRMask(24, 32)},
+			&net.IPNet{IP: net.ParseIP("127.0.0.1"), Mask: net.CIDRMask(8, 32)},
+			&net.IPNet{IP: net.ParseIP("2001:db8::20"), Mask: net.CIDRMask(64, 128)},
+		}, nil
+	}
+
+	got, err := listeningURLs("0.0.0.0", "[::]:7000", interfaceAddresses)
+	if err != nil {
+		t.Fatalf("listeningURLs() error = %v", err)
+	}
+	want := []string{"ws://127.0.0.1:7000", "ws://192.168.1.20:7000"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("listeningURLs() = %q, want %q", got, want)
+	}
+}
+
+func TestListeningURLsFormatsIPv6Addresses(t *testing.T) {
+	t.Parallel()
+
+	interfaceAddresses := func() ([]net.Addr, error) {
+		return []net.Addr{
+			&net.IPNet{IP: net.ParseIP("::1"), Mask: net.CIDRMask(128, 128)},
+			&net.IPNet{IP: net.ParseIP("2001:db8::20"), Mask: net.CIDRMask(64, 128)},
+		}, nil
+	}
+
+	got, err := listeningURLs("::", "[::]:7000", interfaceAddresses)
+	if err != nil {
+		t.Fatalf("listeningURLs() error = %v", err)
+	}
+	want := []string{"ws://[2001:db8::20]:7000", "ws://[::1]:7000"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("listeningURLs() = %q, want %q", got, want)
+	}
+}
+
+func TestListeningURLsUsesLoopbackWhenInterfaceLookupFails(t *testing.T) {
+	t.Parallel()
+
+	wantErr := errors.New("interface lookup failed")
+	got, err := listeningURLs("0.0.0.0", "0.0.0.0:7000", func() ([]net.Addr, error) {
+		return nil, wantErr
+	})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("listeningURLs() error = %v, want %v", err, wantErr)
+	}
+	want := []string{"ws://127.0.0.1:7000"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("listeningURLs() = %q, want %q", got, want)
+	}
+}
+
+func TestListeningURLsUsesBoundAddressWithoutInterfaceLookup(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	got, err := listeningURLs("127.0.0.2", "127.0.0.2:7000", func() ([]net.Addr, error) {
+		called = true
+		return nil, nil
+	})
+	if err != nil {
+		t.Fatalf("listeningURLs() error = %v", err)
+	}
+	if called {
+		t.Fatal("listeningURLs() looked up interfaces for a specific listener")
+	}
+	want := []string{"ws://127.0.0.2:7000"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("listeningURLs() = %q, want %q", got, want)
 	}
 }
 

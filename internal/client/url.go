@@ -11,7 +11,7 @@ import (
 func normalizeURL(input string) (*url.URL, error) {
 	candidate := input
 	if !strings.Contains(candidate, "://") {
-		candidate = "wss://" + candidate
+		candidate = "ws://" + candidate
 	}
 	parsed, err := url.Parse(candidate)
 	if err != nil {

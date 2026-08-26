@@ -21,11 +21,11 @@ Usage:
   rrs --help
   rrs --version
   rrs serve [options]
-  rrs connect [options] <url>
+  rrs connect [options] <address>
 
 Commands:
   serve                 Start the HTTP and WebSocket shell server
-  connect <url>         Connect this terminal to an RRS server
+  connect <address>     Connect this terminal to an RRS server
 
 Run "rrs serve --help" or "rrs connect --help" for command options.
 `

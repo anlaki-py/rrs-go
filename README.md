@@ -69,6 +69,9 @@ Start a network-accessible server with a token:
 RRS_TOKEN='replace-me' ./rrs serve --host 0.0.0.0
 ```
 
+When the server listens on a wildcard address, it prints a `ws://` URL for
+each available IP address instead of displaying `0.0.0.0` or `[::]`.
+
 Expose a local server through a Cloudflare Quick Tunnel. RRS uses an installed
 `cloudflared` command when available, then falls back to `npx --yes cloudflared`:
 
@@ -79,8 +82,11 @@ Expose a local server through a Cloudflare Quick Tunnel. RRS uses an installed
 Connect from an interactive terminal:
 
 ```sh
-./rrs connect ws://127.0.0.1:7000 --token 'replace-me'
+./rrs connect 127.0.0.1:7000 --token 'replace-me'
 ```
+
+An address without a scheme uses `ws://`. You can also pass HTTP URLs; RRS
+converts `http://` to `ws://` and `https://` to `wss://` before connecting.
 
 Plain `ws://` connections are enabled by default, including remote addresses.
 They do not encrypt terminal contents or bearer tokens, so use `wss://` through

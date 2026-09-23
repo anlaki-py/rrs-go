@@ -93,9 +93,10 @@ They do not encrypt terminal contents or bearer tokens, so use `wss://` through
 a trusted reverse proxy outside a controlled network. `--allow-plaintext`
 remains accepted for command compatibility but is no longer required.
 
-The client uses the terminal's alternate screen and enables SGR mouse reports
-for the duration of a connection. Disconnecting restores the previous screen,
-input mode, and mouse mode.
+The client uses the terminal's alternate screen for the duration of a
+connection. Mouse reporting is passed through from the remote application,
+so fullscreen programs can enable it when needed. Disconnecting restores the
+previous screen, input mode, and mouse mode.
 
 ## Security
 

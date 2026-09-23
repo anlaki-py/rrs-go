@@ -38,10 +38,11 @@ escape sequences.
 ## Local terminal behavior
 
 The reference client enters the alternate screen while connected and restores
-the previous screen on exit. It also enables SGR mouse reporting so Windows
-console applications behind ConPTY can receive native click, release, drag,
-scroll, and hover events. Mouse reports remain binary terminal input; they do
-not add a protocol message type.
+the previous screen on exit. It passes mouse reporting modes through from the
+remote application so Windows console applications behind ConPTY can receive
+native click, release, drag, scroll, and hover events when they request them.
+Mouse reports remain binary terminal input; they do not add a protocol message
+type. Disconnecting disables mouse reporting to restore the local terminal.
 
 ## Closure
 
